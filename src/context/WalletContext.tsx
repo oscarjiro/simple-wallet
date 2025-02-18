@@ -1,25 +1,10 @@
 import React, { createContext, useReducer } from "react";
-
-// Transaction Category type
-type Category =
-    | "Food & Beverage"
-    | "Transportation"
-    | "Entertainment"
-    | "Shopping"
-    | "Others";
-
-// Transaction type
-interface Transaction {
-    id: number;
-    type: "income" | "expense";
-    amount: number;
-    datetime: string;
-    category?: Category;
-}
+import { Transaction, TransactionCategory } from "../data/types";
 
 // State type
 interface WalletState {
     balance: number;
+    lastId: number;
     transactions: Transaction[];
 }
 
@@ -35,13 +20,18 @@ const reducer = (state: WalletState, action: Action): WalletState => {
             return {
                 ...state,
                 transactions: [action.payload, ...state.transactions],
+                balance:
+                    action.payload.type === "income"
+                        ? state.balance + action.payload.amount
+                        : state.balance - action.payload.amount,
+                lastId: state.lastId + 1,
             };
+
         case "DELETE_TRANSACTION":
             const transactionToDelete = state.transactions.find(
                 (t) => t.id === action.payload
             );
             if (!transactionToDelete) return state;
-
             return {
                 ...state,
                 transactions: state.transactions.filter(
@@ -52,32 +42,90 @@ const reducer = (state: WalletState, action: Action): WalletState => {
                         ? state.balance - transactionToDelete.amount
                         : state.balance + transactionToDelete.amount,
             };
+
         default:
             return state;
     }
 };
 
+// Categories to number
+const initCategorizedExpenses: Record<TransactionCategory, number> = {
+    "Food & Beverage": 0,
+    Transportation: 0,
+    Entertainment: 0,
+    Shopping: 0,
+    Others: 0,
+};
+
 // Hook to use Wallet Context
-const useWallet = (initWalletState: WalletState) => {
+const useWalletContext = (initWalletState: WalletState) => {
     const [state, dispatch] = useReducer(reducer, initWalletState);
 
-    // Get formatted balance
-    const balance = `$${state.balance.toFixed(2)}`;
+    // Get balance
+    const balance = state.balance;
 
-    // Get
+    // Log new transaction
+    const addTransaction = (
+        amount: number,
+        type: "income" | "expense",
+        category: TransactionCategory = "Others"
+    ) =>
+        dispatch({
+            type: "ADD_TRANSACTION",
+            payload: {
+                id: state.lastId,
+                type: type,
+                amount: amount,
+                datetime: "",
+                category: category,
+            },
+        });
 
-    return { dispatch, balance };
+    // Delete transaction
+    const deleteTransaction = (id: number) =>
+        dispatch({
+            type: "DELETE_TRANSACTION",
+            payload: id,
+        });
+
+    // Get accumulated expenses by category
+    const accumulatedExpensesByCategory: Record<TransactionCategory, number> =
+        state.transactions.reduce<Record<TransactionCategory, number>>(
+            (acc, transaction) => {
+                if (transaction.type === "expense") {
+                    const category: TransactionCategory =
+                        transaction.category ?? "Others";
+                    acc[category] = (acc[category] || 0) + transaction.amount;
+                }
+                return acc;
+            },
+            initCategorizedExpenses
+        );
+
+    return {
+        balance,
+        addTransaction,
+        deleteTransaction,
+        accumulatedExpensesByCategory,
+    };
 };
 
 // Create context
-type UseWalletType = ReturnType<typeof useWallet>;
-export const WalletContext = createContext<UseWalletType | undefined>(
-    undefined
+export type UseWalletContextType = ReturnType<typeof useWalletContext>;
+const initWalletContextState: UseWalletContextType = {
+    balance: 0,
+    addTransaction: () => {},
+    deleteTransaction: () => {},
+    accumulatedExpensesByCategory: initCategorizedExpenses,
+};
+const WalletContext = createContext<UseWalletContextType>(
+    initWalletContextState
 );
 
 // Init state
 const initState: WalletState = {
     balance: 0,
+    lastId: 0,
     transactions: [],
 };
 
@@ -88,8 +136,10 @@ export const WalletProvider = ({
     children: React.ReactNode;
 }): React.ReactNode => {
     return (
-        <WalletContext.Provider value={useWallet(initState)}>
+        <WalletContext.Provider value={useWalletContext(initState)}>
             {children}
         </WalletContext.Provider>
     );
 };
+
+export default WalletContext;

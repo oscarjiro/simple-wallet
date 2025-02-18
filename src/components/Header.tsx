@@ -1,3 +1,8 @@
+import useWallet from "../hooks/useWallet";
+import { formatCurrency } from "../utils/utils";
+
 export default function Header() {
-    return <div>Header</div>;
+    const { balance, accumulatedExpensesByCategory } = useWallet();
+
+    return <div>{formatCurrency(balance)}</div>;
 }
