@@ -63,6 +63,7 @@ const useWalletContext = (initWalletState: WalletState) => {
 
     // Get balance
     const balance = state.balance;
+    const transactions = state.transactions;
 
     // Log new transaction
     const addTransaction = (
@@ -95,15 +96,17 @@ const useWalletContext = (initWalletState: WalletState) => {
                 if (transaction.type === "expense") {
                     const category: TransactionCategory =
                         transaction.category ?? "Others";
-                    acc[category] = (acc[category] || 0) + transaction.amount;
+                    if (!(category in acc)) acc[category] = 0; // Ensure key exists
+                    acc[category] += transaction.amount;
                 }
                 return acc;
             },
-            initCategorizedExpenses
+            { ...initCategorizedExpenses } // Spread ensures new object reference
         );
 
     return {
         balance,
+        transactions,
         addTransaction,
         deleteTransaction,
         accumulatedExpensesByCategory,
